@@ -51,7 +51,7 @@ export default function Login() {
           <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/15 backdrop-blur-xs">
             <GraduationCap className="h-6 w-6 text-blue-200" />
           </div>
-          <span className="text-xl font-bold tracking-tight">Perfect publication, Kolhapur - EduTrack SDMS- </span>
+          <span className="text-xl font-bold tracking-tight">Perfect publication, Kolhapur - EduTrack SDMS</span>
         </div>
 
         <div className="max-w-lg">
