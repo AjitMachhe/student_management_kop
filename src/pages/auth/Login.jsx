@@ -1,6 +1,15 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { GraduationCap, Lock, Mail, Eye, EyeOff, ArrowRight } from 'lucide-react';
+import {
+  GraduationCap,
+  Lock,
+  Mail,
+  Eye,
+  EyeOff,
+  ArrowRight,
+  Phone,
+  MessageCircle,
+} from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 
@@ -57,9 +66,7 @@ export default function Login() {
           </p>
         </div>
 
-        <p className="text-xs text-blue-200/60">
-          {/* Secured with Supabase PostgreSQL & Row-Level Security */}
-        </p>
+        <p className="text-xs text-blue-200/60" />
       </div>
 
       {/* Right Login Card */}
@@ -131,43 +138,42 @@ export default function Login() {
             </button>
           </form>
 
-{/* Developer Contact Section */}
-<div className="mt-8 border-t border-slate-100 pt-5 text-center">
-  <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold mb-2">
-    Developed & Maintained By
-  </p>
+          {/* Developer Contact Section */}
+          <div className="mt-8 border-t border-slate-100 pt-5 text-center">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Developed & Maintained By
+            </p>
 
-  <p className="text-sm font-bold text-slate-800">
-    Ajit Machhe
-  </p>
+            <p className="text-sm font-bold text-slate-800">
+              Ajit Machhe
+            </p>
 
-  <div className="mt-3 flex items-center justify-center gap-4">
-    {/* Call */}
-    <a
-      href="tel:+917262944998"
-      className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
-    >
-      <Phone className="h-4 w-4" />
-      Call
-    </a>
+            <div className="mt-3 flex items-center justify-center gap-4">
+              {/* Call */}
+              <a
+                href="tel:+917262944998"
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+              >
+                <Phone className="h-4 w-4" />
+                Call
+              </a>
 
-    {/* WhatsApp */}
-    <a
-      href="https://wa.me/917262944998"
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100"
-    >
-      <MessageCircle className="h-4 w-4" />
-      WhatsApp
-    </a>
-  </div>
+              {/* WhatsApp */}
+              <a
+                href="https://wa.me/917262944998"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-lg bg-green-50 px-4 py-2 text-sm font-semibold text-green-700 transition hover:bg-green-100"
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp
+              </a>
+            </div>
 
-  <p className="mt-3 text-xs text-slate-400">
-    © {new Date().getFullYear()} EduTrack SDMS
-  </p>
-</div>
-
+            <p className="mt-3 text-xs text-slate-400">
+              © {new Date().getFullYear()} EduTrack SDMS
+            </p>
+          </div>
         </div>
       </div>
     </div>
