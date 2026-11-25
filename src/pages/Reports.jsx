@@ -1,11 +1,8 @@
-import { FileText } from 'lucide-react'; // add FileText to existing lucide-react import
-import { exportTableToPdf } from '../utils/pdfExportHelper';
-import { getOrganizationSettings } from '../services/organizationService';
-
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   BarChart3,
   Download,
+  FileText,
   FilterX,
   Search,
   Award,
@@ -17,9 +14,11 @@ import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabaseClient';
 import { getAllSchoolsDropdown, getSchoolFilterOptions } from '../services/schoolService';
 import { getResultOptions } from '../services/resultOptionService';
+import { getOrganizationSettings } from '../services/organizationService';
 import { exportToCsv } from '../utils/csvHelper';
+import { exportTableToPdf } from '../utils/pdfExportHelper';
 import { BADGE_COLOR_CLASSES } from '../utils/gradeCalculator';
-import { STANDARDS_LIST, MEDIUMS_LIST } from '../utils/validators';
+import { STANDARDS_LIST, MEDIUMS_LIST, ACADEMIC_YEARS_LIST } from '../utils/validators';
 import { useDebounce } from '../hooks/useDebounce';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
@@ -27,6 +26,7 @@ import EmptyState from '../components/common/EmptyState';
 export default function Reports() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [orgSettings, setOrgSettings] = useState(null);
 
   // Dropdown Options
   const [schools, setSchools] = useState([]);
@@ -40,6 +40,7 @@ export default function Reports() {
   const [taluka, setTaluka] = useState('');
   const [standard, setStandard] = useState('');
   const [medium, setMedium] = useState('');
+  const [academicYear, setAcademicYear] = useState('');
   const [resultStatus, setResultStatus] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
   const debouncedStudent = useDebounce(studentSearch, 300);
@@ -49,12 +50,14 @@ export default function Reports() {
       getAllSchoolsDropdown(),
       getSchoolFilterOptions(),
       getResultOptions(),
+      getOrganizationSettings(),
     ])
-      .then(([scData, locOpts, roData]) => {
+      .then(([scData, locOpts, roData, orgData]) => {
         setSchools(scData);
         setDistricts(locOpts.districts);
         setTalukas(locOpts.talukas);
         setResultOptions(roData);
+        setOrgSettings(orgData);
       })
       .catch(console.error);
   }, []);
@@ -72,6 +75,9 @@ export default function Reports() {
           gender,
           standard,
           medium,
+          academic_year,
+          counselor_name,
+          exam_center,
           school_id,
           school_name,
           schools!inner (
@@ -84,9 +90,8 @@ export default function Reports() {
             id,
             subject_1_marks,
             subject_2_marks,
-            subject_3_marks,
-            subject_4_marks,
-            subject_5_marks,
+            subject_1_max_marks,
+            subject_2_max_marks,
             total_marks,
             obtained_marks,
             percentage,
@@ -105,6 +110,7 @@ export default function Reports() {
       if (taluka) query = query.eq('schools.taluka', taluka);
       if (standard) query = query.eq('standard', standard);
       if (medium) query = query.eq('medium', medium);
+      if (academicYear) query = query.eq('academic_year', academicYear);
       if (debouncedStudent.trim()) {
         const term = debouncedStudent.trim();
         query = query.or(`student_name.ilike.%${term}%,form_number.ilike.%${term}%`);
@@ -120,21 +126,21 @@ export default function Reports() {
           formNumber: st.form_number,
           studentName: st.student_name,
           gender: st.gender || '-',
-          parentMobile: st.parent_mobile,
+          parentMobile: st.parent_mobile || '-',
           schoolName: st.school_name,
           district: st.schools?.district || '-',
           taluka: st.schools?.taluka || '-',
           guidanceTeacher: st.schools?.guidance_teacher_name || '-',
+          counselorName: st.counselor_name || '-',
+          examCenter: st.exam_center || '-',
+          academicYear: st.academic_year || '2026-27',
           standard: st.standard,
           medium: st.medium,
           hasExam: !!exam,
           s1: exam?.subject_1_marks ?? '-',
           s2: exam?.subject_2_marks ?? '-',
-          s3: exam?.subject_3_marks ?? '-',
-          s4: exam?.subject_4_marks ?? '-',
-          s5: exam?.subject_5_marks ?? '-',
           obtainedMarks: exam?.obtained_marks ?? 0,
-          totalMarks: exam?.total_marks ?? 500,
+          totalMarks: exam?.total_marks ?? 250,
           percentage: exam ? Number(exam.percentage) : null,
           resultStatus: exam?.result_status || 'Not Evaluated',
           badgeColor: exam?.result_options?.badge_color || 'slate',
@@ -152,7 +158,7 @@ export default function Reports() {
     } finally {
       setLoading(false);
     }
-  }, [schoolId, district, taluka, standard, medium, resultStatus, debouncedStudent]);
+  }, [schoolId, district, taluka, standard, medium, academicYear, resultStatus, debouncedStudent]);
 
   useEffect(() => {
     fetchReportData();
@@ -169,10 +175,10 @@ export default function Reports() {
   const passRate =
     evaluatedRows.length > 0 ? ((passedCount / evaluatedRows.length) * 100).toFixed(1) : '0.0';
 
-  const handleExportReport = () => {
+  const handleExportCsv = () => {
     try {
       exportToCsv('comprehensive_academic_report.csv', rows, [
-        { key: 'formNumber', header: 'Form Number' },
+        { key: 'formNumber', header: 'Exam / Form No.' },
         { key: 'studentName', header: 'Student Name' },
         { key: 'gender', header: 'Gender' },
         { key: 'parentMobile', header: 'Parent Mobile' },
@@ -180,13 +186,13 @@ export default function Reports() {
         { key: 'taluka', header: 'Taluka' },
         { key: 'district', header: 'District' },
         { key: 'guidanceTeacher', header: 'Guidance Teacher' },
+        { key: 'counselorName', header: 'Counselor' },
+        { key: 'examCenter', header: 'Exam Center' },
+        { key: 'academicYear', header: 'Academic Year' },
         { key: 'standard', header: 'Standard' },
         { key: 'medium', header: 'Medium' },
-        { key: 's1', header: 'Subject 1' },
-        { key: 's2', header: 'Subject 2' },
-        { key: 's3', header: 'Subject 3' },
-        { key: 's4', header: 'Subject 4' },
-        { key: 's5', header: 'Subject 5' },
+        { key: 's1', header: 'Subject 1 (Mar/Math)' },
+        { key: 's2', header: 'Subject 2 (Eng/IQ)' },
         { key: 'obtainedMarks', header: 'Obtained Marks' },
         { key: 'totalMarks', header: 'Total Marks' },
         { key: 'percentage', header: 'Percentage (%)' },
@@ -194,7 +200,34 @@ export default function Reports() {
       ]);
       toast.success(`Exported ${rows.length} report rows to CSV.`);
     } catch (err) {
-      toast.error(err.message || 'Export failed.');
+      toast.error(err.message || 'CSV export failed.');
+    }
+  };
+
+  const handleExportPdf = () => {
+    try {
+      exportTableToPdf({
+        filename: 'comprehensive_academic_report.pdf',
+        title: 'Comprehensive Academic & Examination Report',
+        subtitle: `Matched: ${rows.length} | Mean: ${avgPercentage}% | Pass: ${passRate}%`,
+        orgName: orgSettings?.org_name || 'Student Data Management System',
+        columns: [
+          { key: 'formNumber', header: 'Exam No.' },
+          { key: 'studentName', header: 'Student Name' },
+          { key: 'schoolName', header: 'School' },
+          { key: 'standard', header: 'Std' },
+          { key: 's1', header: 'Sub 1' },
+          { key: 's2', header: 'Sub 2' },
+          { key: 'obtainedMarks', header: 'Obtained' },
+          { key: 'totalMarks', header: 'Total' },
+          { key: 'percentage', header: '%' },
+          { key: 'resultStatus', header: 'Result' },
+        ],
+        rows,
+      });
+      toast.success('Analytical Report PDF downloaded.');
+    } catch (err) {
+      toast.error(err.message || 'PDF export failed.');
     }
   };
 
@@ -204,6 +237,7 @@ export default function Reports() {
     setTaluka('');
     setStandard('');
     setMedium('');
+    setAcademicYear('');
     setResultStatus('');
     setStudentSearch('');
   };
@@ -215,47 +249,20 @@ export default function Reports() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Analytical Academic Reports</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Cross-filter by school, district, taluka, standard, medium, student, or result status and export CSV
+            Cross-filter by school, district, taluka, standard, medium, academic year, or result status
           </p>
         </div>
 
-        <button onClick={handleExportReport} disabled={rows.length === 0} className="btn-primary">
-          <Download className="h-4 w-4" />
-          Export Filtered Report ({rows.length})
-        </button>
         <div className="flex flex-wrap items-center gap-2">
-  <button onClick={handleExportReport} disabled={rows.length === 0} className="btn-secondary">
-    <Download className="h-4 w-4" />
-    Export CSV ({rows.length})
-  </button>
-  <button
-    onClick={() => {
-      exportTableToPdf({
-        filename: 'academic_analytical_report.pdf',
-        title: 'Comprehensive Academic & Examination Report',
-        subtitle: `Matched Students: ${rows.length} | Mean: ${avgPercentage}%`,
-        columns: [
-          { key: 'formNumber', header: 'Exam No.' },
-          { key: 'studentName', header: 'Student Name' },
-          { key: 'schoolName', header: 'School' },
-          { key: 'standard', header: 'Std' },
-          { key: 's1', header: 'Sub 1' },
-          { key: 's2', header: 'Sub 2' },
-          { key: 'obtainedMarks', header: 'Obtained' },
-          { key: 'percentage', header: '%' },
-          { key: 'resultStatus', header: 'Result' },
-        ],
-        rows,
-      });
-      toast.success('Analytical Report PDF downloaded.');
-    }}
-    disabled={rows.length === 0}
-    className="btn-primary"
-  >
-    <FileText className="h-4 w-4" />
-    Download PDF ({rows.length})
-  </button>
-</div>
+          <button onClick={handleExportCsv} disabled={rows.length === 0} className="btn-secondary">
+            <Download className="h-4 w-4" />
+            Export CSV ({rows.length})
+          </button>
+          <button onClick={handleExportPdf} disabled={rows.length === 0} className="btn-primary">
+            <FileText className="h-4 w-4" />
+            Download PDF ({rows.length})
+          </button>
+        </div>
       </div>
 
       {/* Multi-Dimensional Filter Panel */}
@@ -317,6 +324,17 @@ export default function Reports() {
           </select>
 
           <select
+            value={academicYear}
+            onChange={(e) => setAcademicYear(e.target.value)}
+            className="input-field"
+          >
+            <option value="">Filter by Academic Year (All)</option>
+            {ACADEMIC_YEARS_LIST.map((yr) => (
+              <option key={yr} value={yr}>{yr}</option>
+            ))}
+          </select>
+
+          <select
             value={resultStatus}
             onChange={(e) => setResultStatus(e.target.value)}
             className="input-field"
@@ -328,19 +346,19 @@ export default function Reports() {
             <option value="Not Evaluated">Not Evaluated</option>
           </select>
 
-          <div className="relative sm:col-span-2">
+          <div className="relative">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
               type="text"
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
-              placeholder="Filter by specific student name or form number..."
+              placeholder="Student name or exam no..."
               className="input-field pl-9"
             />
           </div>
         </div>
 
-        {(schoolId || district || taluka || standard || medium || resultStatus || studentSearch) && (
+        {(schoolId || district || taluka || standard || medium || academicYear || resultStatus || studentSearch) && (
           <div className="mt-3 flex justify-end border-t border-slate-100 pt-2.5">
             <button
               onClick={resetAll}
@@ -411,10 +429,11 @@ export default function Reports() {
             <table className="min-w-full divide-y divide-slate-200 text-left text-xs">
               <thead className="bg-slate-50 font-semibold uppercase tracking-wider text-slate-600">
                 <tr>
-                  <th className="px-4 py-3">Form No.</th>
+                  <th className="px-4 py-3">Exam No.</th>
                   <th className="px-4 py-3">Student Name</th>
                   <th className="px-4 py-3">School (Taluka, Dist)</th>
-                  <th className="px-4 py-3">Std / Med</th>
+                  <th className="px-4 py-3">Std / AY</th>
+                  <th className="px-4 py-3 text-center">Sub 1 / Sub 2</th>
                   <th className="px-4 py-3 text-right">Marks</th>
                   <th className="px-4 py-3 text-right">%</th>
                   <th className="px-4 py-3">Result Status</th>
@@ -437,7 +456,10 @@ export default function Reports() {
                       </p>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                      {r.standard} • {r.medium}
+                      {r.standard} • {r.academicYear}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-center font-mono text-slate-700">
+                      {r.s1} / {r.s2}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right font-medium text-slate-800">
                       {r.hasExam ? `${r.obtainedMarks} / ${r.totalMarks}` : '-'}

@@ -12,8 +12,17 @@ export const MEDIUMS_LIST = [
   'Urdu',
 ];
 
-export function isValidIndianMobile(phone) {
-  if (!phone) return false;
+export const ACADEMIC_YEARS_LIST = [
+  '2025-26',
+  '2026-27',
+  '2027-28',
+  '2028-29',
+];
+
+export function isValidIndianMobile(phone, required = true) {
+  if (!phone || !String(phone).trim()) {
+    return !required;
+  }
   const cleaned = String(phone).replace(/[\s-]/g, '');
   return /^(\+91)?[6-9]\d{9}$/.test(cleaned);
 }
@@ -30,6 +39,6 @@ export function isValidPinCode(pin) {
 }
 
 export function isValidEmail(email) {
-  if (!email || !email.trim()) return true; // optional fields pass when blank
+  if (!email || !email.trim()) return true;
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }

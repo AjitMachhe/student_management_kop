@@ -32,10 +32,6 @@ function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
   ctx.fillText(line.trim(), x, currentY);
 }
 
-/**
- * Generates Hall Ticket PDF matching the attached template layout
- * Supports single student or bulk array of students
- */
 export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
   const students = Array.isArray(studentsList) ? studentsList : [studentsList];
   if (students.length === 0) throw new Error('No students selected for Hall Ticket.');
@@ -54,7 +50,6 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
       doc.addPage();
     }
 
-    // Background & Outer Dashed Cut Border
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -64,7 +59,6 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
     ctx.strokeRect(16, 16, canvas.width - 32, canvas.height - 32);
     ctx.setLineDash([]);
 
-    // Inner Card Border
     ctx.strokeStyle = '#be185d';
     ctx.lineWidth = 4;
     ctx.strokeRect(32, 32, canvas.width - 64, canvas.height - 64);
@@ -93,7 +87,7 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
     ctx.closePath();
     ctx.fill();
 
-    // Customer Logo Circle on Top-Left of Banner
+    // Customer Logo Circle
     ctx.fillStyle = '#ffffff';
     ctx.beginPath();
     ctx.arc(195, 130, 74, 0, Math.PI * 2);
@@ -116,7 +110,6 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
       ctx.fillText(orgSettings?.exam_short_code || 'EXAM', 195, 138);
     }
 
-    // Organization & Exam Title in Header
     ctx.fillStyle = '#fde047';
     ctx.font = 'bold 26px sans-serif';
     ctx.textAlign = 'center';
@@ -134,7 +127,7 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
       130
     );
 
-    // Std & Exam Date Pill Boxes inside Banner
+    // Std & Exam Date Boxes
     ctx.fillStyle = '#ffffff';
     ctx.font = 'bold 26px sans-serif';
     ctx.textAlign = 'right';
@@ -156,7 +149,6 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
     ctx.textAlign = 'center';
     ctx.fillText(orgSettings?.exam_date || '22 March 2026', 1070, 193);
 
-    // Student Details Rows with Ruled Lines
     const rows = [
       { label: 'Student Name', value: student.student_name || '-' },
       { label: 'Exam No.', value: student.form_number || '-' },
@@ -176,7 +168,6 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
       ctx.font = 'bold 30px sans-serif';
       ctx.fillText(r.value, 410, startY);
 
-      // Horizontal ruled line
       ctx.strokeStyle = '#cbd5e1';
       ctx.lineWidth = 2;
       ctx.beginPath();
@@ -187,7 +178,7 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
       startY += 64;
     });
 
-    // School Stamp Placeholder Circle on Right
+    // School Stamp Circle
     ctx.save();
     ctx.strokeStyle = 'rgba(79, 70, 229, 0.35)';
     ctx.lineWidth = 4;
@@ -204,7 +195,7 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
     ctx.fillText('STAMP', 1280, 410);
     ctx.restore();
 
-    // Bottom Notice & Controller Signature
+    // Notice & Controller Signature
     ctx.fillStyle = '#be185d';
     ctx.font = 'bold 23px sans-serif';
     ctx.textAlign = 'left';
@@ -230,7 +221,6 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
     ctx.textAlign = 'center';
     ctx.fillText(orgSettings?.controller_title || 'Exam Controller', 1425, 682);
 
-    // Embed canvas onto A4 page (top half or bottom half)
     const imgData = canvas.toDataURL('image/png');
     const yOffset = index % 2 === 0 ? 12 : 152;
     doc.addImage(imgData, 'PNG', 10, yOffset, 190, 92);
@@ -243,10 +233,6 @@ export async function generateHallTicketPdf(studentsList, orgSettings = {}) {
   doc.save(fileName);
 }
 
-/**
- * Generates Certificate (प्रमाणपत्र) PDF matching the attached template layout
- * Supports single exam result or bulk array of exam results
- */
 export async function generateCertificatePdf(examRecords, orgSettings = {}) {
   const exams = Array.isArray(examRecords) ? examRecords : [examRecords];
   if (exams.length === 0) throw new Error('No examination records selected for Certificate.');
@@ -263,7 +249,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
   exams.forEach((exam, idx) => {
     if (idx > 0) doc.addPage();
 
-    // Warm Cream/Parchment Background
     const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
     grad.addColorStop(0, '#fdfbf7');
     grad.addColorStop(0.5, '#fbf7ee');
@@ -271,7 +256,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Ornate Double Gold/Brown Frame
     ctx.strokeStyle = '#78350f';
     ctx.lineWidth = 10;
     ctx.strokeRect(42, 42, canvas.width - 84, canvas.height - 84);
@@ -280,7 +264,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
     ctx.lineWidth = 3;
     ctx.strokeRect(62, 62, canvas.width - 124, canvas.height - 124);
 
-    // Corner Ornamental Accents
     const corners = [
       [62, 62],
       [canvas.width - 62, 62],
@@ -294,7 +277,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       ctx.fill();
     });
 
-    // Top-Left Organization Logo
     if (logoImg) {
       ctx.drawImage(logoImg, 110, 105, 175, 175);
     } else {
@@ -308,7 +290,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       ctx.fillText(orgSettings?.exam_short_code || 'MSTS', 195, 198);
     }
 
-    // Header Organization & Exam Title
     ctx.fillStyle = '#991b1b';
     ctx.font = 'bold 34px sans-serif';
     ctx.textAlign = 'left';
@@ -328,13 +309,11 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       230
     );
 
-    // Center "प्रमाणपत्र" Banner
     ctx.fillStyle = '#991b1b';
     ctx.font = 'bold 92px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('प्रमाणपत्र', canvas.width / 2, 430);
 
-    // Decorative Divider under Title
     ctx.strokeStyle = '#b45309';
     ctx.lineWidth = 4;
     ctx.beginPath();
@@ -342,7 +321,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
     ctx.lineTo(970, 465);
     ctx.stroke();
 
-    // Citation Body Text
     const acadYear = exam.students?.academic_year || orgSettings?.academic_year || '2026-27';
     const orgDisplay = orgSettings?.org_name_marathi || orgSettings?.org_name || 'परफेक्ट पब्लिकेशन';
 
@@ -369,7 +347,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       825
     );
 
-    // Marks Table (Matching 4-Column Certificate Layout)
     const tableX = 130;
     const tableY = 910;
     const colWidths = [460, 220, 220, 240];
@@ -379,12 +356,10 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
     ctx.strokeStyle = '#0f172a';
     ctx.lineWidth = 3;
 
-    // Header Row
     ctx.fillStyle = 'rgba(180, 83, 9, 0.12)';
     ctx.fillRect(tableX, tableY, totalTableW, rowH);
     ctx.strokeRect(tableX, tableY, totalTableW, rowH * 3);
 
-    // Vertical Column Dividers
     let curX = tableX;
     colWidths.forEach((w, i) => {
       if (i > 0) {
@@ -396,7 +371,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       curX += w;
     });
 
-    // Horizontal Row Dividers (Columns 1-3 only; Column 4 spans total marks)
     ctx.beginPath();
     ctx.moveTo(tableX, tableY + rowH);
     ctx.lineTo(tableX + totalTableW, tableY + rowH);
@@ -407,7 +381,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
     ctx.lineTo(tableX + colWidths[0] + colWidths[1] + colWidths[2], tableY + rowH * 2);
     ctx.stroke();
 
-    // Table Headers
     ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 30px sans-serif';
     ctx.textAlign = 'center';
@@ -424,7 +397,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       tableY + 54
     );
 
-    // Row 1: Marathi & Mathematics
     ctx.textAlign = 'left';
     ctx.font = 'bold 28px sans-serif';
     ctx.fillText('मराठी व गणित (Marathi & Maths)', tableX + 24, tableY + rowH + 54);
@@ -441,7 +413,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       tableY + rowH + 54
     );
 
-    // Row 2: English & Intelligence
     ctx.textAlign = 'left';
     ctx.fillText('इंग्रजी व बुद्धिमत्ता (English & IQ)', tableX + 24, tableY + rowH * 2 + 54);
 
@@ -457,7 +428,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       tableY + rowH * 2 + 54
     );
 
-    // Merged Total Obtained Marks Cell
     ctx.font = 'bold 38px sans-serif';
     ctx.fillStyle = '#991b1b';
     ctx.fillText(
@@ -473,13 +443,11 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
       tableY + rowH * 2 + 48
     );
 
-    // Remarks (शेरा)
     ctx.fillStyle = '#1e293b';
     ctx.font = 'bold 34px sans-serif';
     ctx.textAlign = 'left';
     ctx.fillText(`शेरा :   ${exam.remarks || exam.result_status}`, 130, 1280);
 
-    // Bottom Left Congratulations Text
     ctx.fillStyle = '#0f172a';
     ctx.font = 'bold 32px sans-serif';
     ctx.fillText('हे प्रमाणपत्र देणेत येत आहे.', 130, 1430);
@@ -488,7 +456,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
     ctx.font = 'bold 48px sans-serif';
     ctx.fillText('अभिनंदन !', 130, 1510);
 
-    // Center Red Gold-Edged Seal Badge
     ctx.fillStyle = '#991b1b';
     ctx.beginPath();
     ctx.arc(canvas.width / 2, 1650, 110, 0, Math.PI * 2);
@@ -502,7 +469,6 @@ export async function generateCertificatePdf(examRecords, orgSettings = {}) {
     ctx.textAlign = 'center';
     ctx.fillText(orgSettings?.exam_short_code || 'M.S.T.S EXAM', canvas.width / 2, 1660);
 
-    // Bottom Right Controller Signature
     if (sigImg) {
       ctx.drawImage(sigImg, 1020, 1480, 220, 85);
     }
