@@ -45,6 +45,9 @@ export default function Examinations() {
   const [resultOptions, setResultOptions] = useState([]);
   const [orgSettings, setOrgSettings] = useState(null);
 
+  // Certificate Language Toggle ('english' or 'marathi')
+  const [certLang, setCertLang] = useState('english');
+
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 350);
   const [schoolId, setSchoolId] = useState('');
@@ -133,8 +136,10 @@ export default function Examinations() {
 
   const handleSingleCertificate = async (exam) => {
     try {
-      toast.loading('Generating Certificate PDF...', { id: 'cert' });
-      await generateCertificatePdf(exam, orgSettings);
+      toast.loading(`Generating ${certLang === 'english' ? 'English' : 'Marathi'} Certificate...`, {
+        id: 'cert',
+      });
+      await generateCertificatePdf(exam, orgSettings, certLang);
       toast.success('Certificate PDF downloaded.', { id: 'cert' });
     } catch (err) {
       toast.error(err.message || 'Failed to generate certificate.', { id: 'cert' });
@@ -143,7 +148,9 @@ export default function Examinations() {
 
   const handleBulkCertificates = async () => {
     try {
-      toast.loading('Generating Bulk Certificates PDF...', { id: 'bulk-cert' });
+      toast.loading(`Generating Bulk ${certLang === 'english' ? 'English' : 'Marathi'} Certificates...`, {
+        id: 'bulk-cert',
+      });
       const { data } = await getExaminations({
         search: debouncedSearch,
         schoolId,
@@ -155,7 +162,7 @@ export default function Examinations() {
         page: 1,
         pageSize: 300,
       });
-      await generateCertificatePdf(data, orgSettings);
+      await generateCertificatePdf(data, orgSettings, certLang);
       toast.success(`Generated ${data.length} Certificates in PDF.`, { id: 'bulk-cert' });
     } catch (err) {
       toast.error(err.message || 'Failed to generate certificates.', { id: 'bulk-cert' });
@@ -211,15 +218,41 @@ export default function Examinations() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Examination &amp; Result Management</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            2-Subject marks entry (100/100 up to 3rd Std; 150/100 from 4th Std+) &amp; Certificate PDF printing
+            2-Subject marks entry &amp; English / Marathi Certificate PDF printing
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Certificate Language Toggle */}
+          <div className="inline-flex items-center rounded-lg border border-slate-300 bg-white p-0.5 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setCertLang('english')}
+              className={`rounded-md px-2.5 py-1.5 transition-colors ${
+                certLang === 'english'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              English Cert
+            </button>
+            <button
+              type="button"
+              onClick={() => setCertLang('marathi')}
+              className={`rounded-md px-2.5 py-1.5 transition-colors ${
+                certLang === 'marathi'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Marathi Cert
+            </button>
+          </div>
+
           <button onClick={handleBulkCertificates} className="btn-secondary">
             <Award className="h-4 w-4 text-amber-600" />
             Bulk Certificates PDF
@@ -430,7 +463,7 @@ export default function Examinations() {
                         <div className="inline-flex items-center gap-1">
                           <button
                             onClick={() => handleSingleCertificate(ex)}
-                            title="Download Certificate PDF"
+                            title={`Download ${certLang === 'english' ? 'English' : 'Marathi'} Certificate PDF`}
                             className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50"
                           >
                             <Award className="h-4 w-4" />
