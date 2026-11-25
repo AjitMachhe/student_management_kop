@@ -1,3 +1,7 @@
+import { FileText } from 'lucide-react'; // add FileText to existing lucide-react import
+import { exportTableToPdf } from '../utils/pdfExportHelper';
+import { getOrganizationSettings } from '../services/organizationService';
+
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   BarChart3,
@@ -219,6 +223,39 @@ export default function Reports() {
           <Download className="h-4 w-4" />
           Export Filtered Report ({rows.length})
         </button>
+        <div className="flex flex-wrap items-center gap-2">
+  <button onClick={handleExportReport} disabled={rows.length === 0} className="btn-secondary">
+    <Download className="h-4 w-4" />
+    Export CSV ({rows.length})
+  </button>
+  <button
+    onClick={() => {
+      exportTableToPdf({
+        filename: 'academic_analytical_report.pdf',
+        title: 'Comprehensive Academic & Examination Report',
+        subtitle: `Matched Students: ${rows.length} | Mean: ${avgPercentage}%`,
+        columns: [
+          { key: 'formNumber', header: 'Exam No.' },
+          { key: 'studentName', header: 'Student Name' },
+          { key: 'schoolName', header: 'School' },
+          { key: 'standard', header: 'Std' },
+          { key: 's1', header: 'Sub 1' },
+          { key: 's2', header: 'Sub 2' },
+          { key: 'obtainedMarks', header: 'Obtained' },
+          { key: 'percentage', header: '%' },
+          { key: 'resultStatus', header: 'Result' },
+        ],
+        rows,
+      });
+      toast.success('Analytical Report PDF downloaded.');
+    }}
+    disabled={rows.length === 0}
+    className="btn-primary"
+  >
+    <FileText className="h-4 w-4" />
+    Download PDF ({rows.length})
+  </button>
+</div>
       </div>
 
       {/* Multi-Dimensional Filter Panel */}

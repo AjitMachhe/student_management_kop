@@ -3,6 +3,8 @@ import {
   Plus,
   Search,
   Download,
+  FileText,
+  Award,
   Edit2,
   Trash2,
   FilterX,
@@ -18,9 +20,12 @@ import {
 import { getAllSchoolsDropdown } from '../services/schoolService';
 import { getAllStudentsDropdown } from '../services/studentService';
 import { getResultOptions } from '../services/resultOptionService';
+import { getOrganizationSettings } from '../services/organizationService';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { exportToCsv } from '../utils/csvHelper';
+import { exportTableToPdf } from '../utils/pdfExportHelper';
+import { generateCertificatePdf } from '../utils/documentPdfGenerator';
 import { BADGE_COLOR_CLASSES } from '../utils/gradeCalculator';
 import { STANDARDS_LIST, MEDIUMS_LIST } from '../utils/validators';
 import LoadingSpinner from '../components/common/LoadingSpinner';
@@ -38,8 +43,8 @@ export default function Examinations() {
   const [schoolsDropdown, setSchoolsDropdown] = useState([]);
   const [studentsDropdown, setStudentsDropdown] = useState([]);
   const [resultOptions, setResultOptions] = useState([]);
+  const [orgSettings, setOrgSettings] = useState(null);
 
-  // Filters & Sorting
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 350);
   const [schoolId, setSchoolId] = useState('');
@@ -51,7 +56,6 @@ export default function Examinations() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Modals
   const [formOpen, setFormOpen] = useState(false);
   const [editingExam, setEditingExam] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -62,11 +66,13 @@ export default function Examinations() {
       getAllSchoolsDropdown(),
       getAllStudentsDropdown(),
       getResultOptions(),
+      getOrganizationSettings(),
     ])
-      .then(([scData, stData, roData]) => {
+      .then(([scData, stData, roData, orgData]) => {
         setSchoolsDropdown(scData);
         setStudentsDropdown(stData);
         setResultOptions(roData);
+        setOrgSettings(orgData);
       })
       .catch(console.error);
   }, []);
@@ -125,7 +131,52 @@ export default function Examinations() {
     }
   };
 
-  const handleExportCsv = async () => {
+  const handleSingleCertificate = async (exam) => {
+    try {
+      toast.loading('Generating Certificate PDF...', { id: 'cert' });
+      await generateCertificatePdf(exam, orgSettings);
+      toast.success('Certificate PDF downloaded.', { id: 'cert' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate certificate.', { id: 'cert' });
+    }
+  };
+
+  const handleBulkCertificates = async () => {
+    try {
+      toast.loading('Generating Bulk Certificates PDF...', { id: 'bulk-cert' });
+      const { data } = await getExaminations({
+        search: debouncedSearch,
+        schoolId,
+        standard,
+        medium,
+        resultStatus,
+        sortBy,
+        sortOrder,
+        page: 1,
+        pageSize: 300,
+      });
+      await generateCertificatePdf(data, orgSettings);
+      toast.success(`Generated ${data.length} Certificates in PDF.`, { id: 'bulk-cert' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate certificates.', { id: 'bulk-cert' });
+    }
+  };
+
+  const exportCols = [
+    { key: 'student_name', header: 'Student Name' },
+    { key: 'school_name', header: 'School Name' },
+    { key: 'standard', header: 'Std' },
+    { key: 'medium', header: 'Medium' },
+    { key: 'subject_1_marks', header: 'Sub 1 (Mar/Math)' },
+    { key: 'subject_2_marks', header: 'Sub 2 (Eng/IQ)' },
+    { key: 'obtained_marks', header: 'Obtained' },
+    { key: 'total_marks', header: 'Total' },
+    { key: 'percentage', header: '%' },
+    { key: 'result_status', header: 'Result Status' },
+    { key: 'remarks', header: 'Remarks' },
+  ];
+
+  const handleExport = async (format) => {
     try {
       const { data } = await getExaminations({
         search: debouncedSearch,
@@ -138,23 +189,21 @@ export default function Examinations() {
         page: 1,
         pageSize: 10000,
       });
-      exportToCsv('examination_results.csv', data, [
-        { key: 'student_name', header: 'Student Name' },
-        { key: 'school_name', header: 'School Name' },
-        { key: 'standard', header: 'Standard' },
-        { key: 'medium', header: 'Medium' },
-        { key: 'subject_1_marks', header: 'Subject 1' },
-        { key: 'subject_2_marks', header: 'Subject 2' },
-        { key: 'subject_3_marks', header: 'Subject 3' },
-        { key: 'subject_4_marks', header: 'Subject 4' },
-        { key: 'subject_5_marks', header: 'Subject 5' },
-        { key: 'total_marks', header: 'Total Marks' },
-        { key: 'obtained_marks', header: 'Obtained Marks' },
-        { key: 'percentage', header: 'Percentage' },
-        { key: 'result_status', header: 'Result Status' },
-        { key: 'remarks', header: 'Remarks' },
-      ]);
-      toast.success(`Exported ${data.length} examination records.`);
+
+      if (format === 'csv') {
+        exportToCsv('examination_results.csv', data, exportCols);
+        toast.success(`Exported ${data.length} examination records to CSV.`);
+      } else {
+        exportTableToPdf({
+          filename: 'examination_results.pdf',
+          title: 'Examination Merit & Result Sheet',
+          subtitle: `Total Evaluated: ${data.length}`,
+          orgName: orgSettings?.org_name || 'Student Data Management System',
+          columns: exportCols,
+          rows: data,
+        });
+        toast.success(`Downloaded PDF with ${data.length} results.`);
+      }
     } catch (err) {
       toast.error(err.message || 'Export failed.');
     }
@@ -162,19 +211,26 @@ export default function Examinations() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Examination & Result Management</h1>
+          <h1 className="text-2xl font-bold text-slate-900">Examination &amp; Result Management</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Record 5-subject marks with automatic percentage calculation across 12 result brackets
+            2-Subject marks entry (100/100 up to 3rd Std; 150/100 from 4th Std+) &amp; Certificate PDF printing
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button onClick={handleExportCsv} className="btn-secondary">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={handleBulkCertificates} className="btn-secondary">
+            <Award className="h-4 w-4 text-amber-600" />
+            Bulk Certificates PDF
+          </button>
+          <button onClick={() => handleExport('csv')} className="btn-secondary">
             <Download className="h-4 w-4" />
-            Export Results CSV
+            CSV
+          </button>
+          <button onClick={() => handleExport('pdf')} className="btn-secondary">
+            <FileText className="h-4 w-4 text-red-600" />
+            PDF
           </button>
           <button
             onClick={() => {
@@ -256,14 +312,13 @@ export default function Examinations() {
             }}
             className="input-field"
           >
-            <option value="">All 12 Result Statuses</option>
+            <option value="">All Result Statuses</option>
             {resultOptions.map((ro) => (
               <option key={ro.id} value={ro.option_label}>{ro.option_label}</option>
             ))}
           </select>
         </div>
 
-        {/* Sort Controls */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs">
           <div className="flex items-center gap-2">
             <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
@@ -329,11 +384,12 @@ export default function Examinations() {
             <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
                 <tr>
-                  <th className="px-4 py-3">Student & School</th>
+                  <th className="px-4 py-3">Student &amp; School</th>
                   <th className="px-4 py-3">Std / Med</th>
-                  <th className="px-4 py-3 text-center">S1 | S2 | S3 | S4 | S5</th>
-                  <th className="px-4 py-3 text-right">Marks</th>
-                  <th className="px-4 py-3 text-right">Percentage</th>
+                  <th className="px-4 py-3 text-center">Sub 1 (Mar/Math)</th>
+                  <th className="px-4 py-3 text-center">Sub 2 (Eng/IQ)</th>
+                  <th className="px-4 py-3 text-right">Total</th>
+                  <th className="px-4 py-3 text-right">%</th>
                   <th className="px-4 py-3">Result Status</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -351,9 +407,11 @@ export default function Examinations() {
                       <td className="whitespace-nowrap px-4 py-3 text-xs font-medium text-slate-600">
                         {ex.standard} • {ex.medium}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-center font-mono text-xs text-slate-700">
-                        {ex.subject_1_marks} | {ex.subject_2_marks} | {ex.subject_3_marks} |{' '}
-                        {ex.subject_4_marks} | {ex.subject_5_marks}
+                      <td className="whitespace-nowrap px-4 py-3 text-center font-mono text-xs font-semibold text-slate-700">
+                        {ex.subject_1_marks} / {ex.subject_1_max_marks || 100}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-center font-mono text-xs font-semibold text-slate-700">
+                        {ex.subject_2_marks} / {ex.subject_2_max_marks || 100}
                       </td>
                       <td className="whitespace-nowrap px-4 py-3 text-right font-semibold text-slate-800">
                         {ex.obtained_marks} / {ex.total_marks}
@@ -371,12 +429,19 @@ export default function Examinations() {
                       <td className="whitespace-nowrap px-4 py-3 text-right">
                         <div className="inline-flex items-center gap-1">
                           <button
+                            onClick={() => handleSingleCertificate(ex)}
+                            title="Download Certificate PDF"
+                            className="rounded-lg p-1.5 text-amber-600 hover:bg-amber-50"
+                          >
+                            <Award className="h-4 w-4" />
+                          </button>
+                          <button
                             onClick={() => {
                               setEditingExam(ex);
                               setFormOpen(true);
                             }}
                             title="Edit Marks"
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-amber-50 hover:text-amber-600"
+                            className="rounded-lg p-1.5 text-slate-500 hover:bg-blue-50 hover:text-blue-600"
                           >
                             <Edit2 className="h-4 w-4" />
                           </button>

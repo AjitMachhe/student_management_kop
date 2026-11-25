@@ -1,7 +1,7 @@
 import Papa from 'papaparse';
 import { supabase } from '../lib/supabaseClient';
 import { isValidIndianMobile, isValidPinCode, isValidSchoolPhone } from '../utils/validators';
-import { calculateExamResult } from '../utils/gradeCalculator';
+import { calculateTwoSubjectResult } from '../utils/gradeCalculator';
 
 export const ENTITY_SCHEMAS = {
   schools: {
@@ -13,7 +13,6 @@ export const ENTITY_SCHEMAS = {
       { key: 'taluka', label: 'Taluka', required: true, aliases: ['taluka', 'tehsil', 'block'] },
       { key: 'district', label: 'District', required: true, aliases: ['district', 'dist'] },
       { key: 'pin_code', label: 'PIN Code', required: true, aliases: ['pin', 'pin code', 'pincode', 'zip'] },
-      { key: 'standard', label: 'Standard', required: true, aliases: ['standard', 'std', 'class'] },
       { key: 'medium', label: 'Medium', required: true, aliases: ['medium', 'instruction medium'] },
       { key: 'school_phone', label: 'School Phone', required: true, aliases: ['school phone', 'phone', 'telephone'] },
       { key: 'guidance_teacher_name', label: 'Guidance Teacher Name', required: true, aliases: ['guidance teacher', 'teacher name', 'teacher'] },
@@ -28,27 +27,27 @@ export const ENTITY_SCHEMAS = {
       { key: 'father_name', label: "Father's Name", required: true, aliases: ['father name', "father's name", 'middle name'] },
       { key: 'student_surname', label: 'Surname', required: true, aliases: ['surname', 'student surname', 'last name'] },
       { key: 'student_name', label: 'Full Student Name', required: false, aliases: ['student name', 'full name', 'name'] },
-      { key: 'parent_mobile', label: 'Parent Mobile', required: true, aliases: ['parent mobile', 'mobile', 'phone', 'contact'] },
+      { key: 'parent_mobile', label: 'Parent Mobile (Optional)', required: false, aliases: ['parent mobile', 'mobile', 'phone', 'contact'] },
       { key: 'school_name', label: 'School Name (Exact Match)', required: true, aliases: ['school name', 'school'] },
       { key: 'standard', label: 'Standard', required: true, aliases: ['standard', 'std', 'class'] },
       { key: 'medium', label: 'Medium', required: true, aliases: ['medium'] },
+      { key: 'academic_year', label: 'Academic Year', required: false, aliases: ['academic year', 'year', 'ay'] },
+      { key: 'counselor_name', label: 'Counselor Name', required: false, aliases: ['counselor', 'counselor name'] },
+      { key: 'exam_center', label: 'Exam Center', required: false, aliases: ['exam center', 'center', 'center name'] },
       { key: 'gender', label: 'Gender', required: false, aliases: ['gender', 'sex'] },
-      { key: 'date_of_birth', label: 'Date of Birth (YYYY-MM-DD)', required: false, aliases: ['dob', 'date of birth', 'birth date'] },
+      { key: 'date_of_birth', label: 'Date of Birth (YYYY-MM-DD)', required: false, aliases: ['dob', 'date of birth'] },
       { key: 'student_address', label: 'Student Address', required: false, aliases: ['address', 'student address'] },
     ],
   },
   examinations: {
-    label: 'Examination Results',
+    label: 'Examination Results (2 Subjects)',
     fields: [
-      { key: 'student_form_number', label: 'Student Form No. (or Name)', required: false, aliases: ['form number', 'form no', 'student id'] },
+      { key: 'student_form_number', label: 'Exam / Form No.', required: false, aliases: ['form number', 'form no', 'exam no'] },
       { key: 'student_name', label: 'Student Full Name', required: true, aliases: ['student name', 'name'] },
       { key: 'school_name', label: 'School Name', required: true, aliases: ['school name', 'school'] },
-      { key: 'subject_1_marks', label: 'Subject 1 Marks', required: true, aliases: ['subject 1', 'sub1', 'marks 1'] },
-      { key: 'subject_2_marks', label: 'Subject 2 Marks', required: true, aliases: ['subject 2', 'sub2', 'marks 2'] },
-      { key: 'subject_3_marks', label: 'Subject 3 Marks', required: true, aliases: ['subject 3', 'sub3', 'marks 3'] },
-      { key: 'subject_4_marks', label: 'Subject 4 Marks', required: true, aliases: ['subject 4', 'sub4', 'marks 4'] },
-      { key: 'subject_5_marks', label: 'Subject 5 Marks', required: true, aliases: ['subject 5', 'sub5', 'marks 5'] },
-      { key: 'remarks', label: 'Remarks', required: false, aliases: ['remarks', 'comment'] },
+      { key: 'subject_1_marks', label: 'Subject 1 Marks (Marathi & Maths)', required: true, aliases: ['subject 1', 'sub1', 'marks 1', 'marathi'] },
+      { key: 'subject_2_marks', label: 'Subject 2 Marks (English & IQ)', required: true, aliases: ['subject 2', 'sub2', 'marks 2', 'english'] },
+      { key: 'remarks', label: 'Remarks / Rank (शेरा)', required: false, aliases: ['remarks', 'rank', 'comment'] },
     ],
   },
 };
@@ -90,7 +89,7 @@ export function autoMapColumns(entityType, csvHeaders) {
 
 export async function validateMappedRows(entityType, rawRows, columnMapping) {
   const [schoolsRes, studentsRes, resultOptsRes] = await Promise.all([
-    supabase.from('schools').select('id, school_name, taluka, district, standard, medium'),
+    supabase.from('schools').select('id, school_name, taluka, district, medium'),
     supabase.from('students').select('id, form_number, first_name, father_name, student_surname, student_name, school_id, school_name, standard, medium'),
     supabase.from('result_options').select('*').order('display_order', { ascending: true }),
   ]);
@@ -103,7 +102,7 @@ export async function validateMappedRows(entityType, rawRows, columnMapping) {
   const validated = [];
 
   rawRows.forEach((raw, idx) => {
-    const rowNumber = idx + 2; // +1 for 0-index, +1 for header row
+    const rowNumber = idx + 2;
     const mapped = {};
     Object.entries(columnMapping).forEach(([dbKey, csvCol]) => {
       mapped[dbKey] = csvCol ? String(raw[csvCol] ?? '').trim() : '';
@@ -118,19 +117,17 @@ export async function validateMappedRows(entityType, rawRows, columnMapping) {
       if (!mapped.taluka) errors.push('Missing Taluka');
       if (!mapped.district) errors.push('Missing District');
       if (!isValidPinCode(mapped.pin_code)) errors.push('Invalid 6-digit PIN Code');
-      if (!mapped.standard) errors.push('Missing Standard');
       if (!mapped.medium) errors.push('Missing Medium');
       if (!isValidSchoolPhone(mapped.school_phone)) errors.push('Invalid School Phone');
       if (!mapped.guidance_teacher_name) errors.push('Missing Guidance Teacher');
-      if (!isValidIndianMobile(mapped.teacher_mobile)) errors.push('Invalid Teacher Mobile');
+      if (!isValidIndianMobile(mapped.teacher_mobile, true)) errors.push('Invalid Teacher Mobile');
 
-      const sig = `${mapped.school_name}|${mapped.taluka}|${mapped.district}|${mapped.standard}|${mapped.medium}`.toLowerCase();
+      const sig = `${mapped.school_name}|${mapped.taluka}|${mapped.district}|${mapped.medium}`.toLowerCase();
       if (seenInFile.has(sig)) errors.push('Duplicate row inside CSV file');
       seenInFile.add(sig);
 
       const dbDup = existingSchools.some(
-        (s) =>
-          `${s.school_name}|${s.taluka}|${s.district}|${s.standard}|${s.medium}`.toLowerCase() === sig
+        (s) => `${s.school_name}|${s.taluka}|${s.district}|${s.medium}`.toLowerCase() === sig
       );
       if (dbDup) errors.push('Already exists in database');
 
@@ -145,7 +142,6 @@ export async function validateMappedRows(entityType, rawRows, columnMapping) {
           taluka: mapped.taluka,
           district: mapped.district,
           pin_code: mapped.pin_code,
-          standard: mapped.standard,
           medium: mapped.medium,
           school_phone: mapped.school_phone,
           guidance_teacher_name: mapped.guidance_teacher_name,
@@ -157,7 +153,9 @@ export async function validateMappedRows(entityType, rawRows, columnMapping) {
       if (!mapped.first_name) errors.push('Missing First Name');
       if (!mapped.father_name) errors.push("Missing Father's Name");
       if (!mapped.student_surname) errors.push('Missing Surname');
-      if (!isValidIndianMobile(mapped.parent_mobile)) errors.push('Invalid Parent Mobile');
+      if (mapped.parent_mobile && !isValidIndianMobile(mapped.parent_mobile, false)) {
+        errors.push('Invalid Parent Mobile');
+      }
       if (!mapped.standard) errors.push('Missing Standard');
       if (!mapped.medium) errors.push('Missing Medium');
 
@@ -191,11 +189,14 @@ export async function validateMappedRows(entityType, rawRows, columnMapping) {
           first_name: mapped.first_name,
           father_name: mapped.father_name,
           student_surname: mapped.student_surname,
-          parent_mobile: mapped.parent_mobile,
+          parent_mobile: mapped.parent_mobile || null,
           school_id: matchedSchool?.id || null,
           school_name: matchedSchool?.school_name || mapped.school_name,
           standard: mapped.standard,
           medium: mapped.medium,
+          academic_year: mapped.academic_year || '2026-27',
+          counselor_name: mapped.counselor_name || null,
+          exam_center: mapped.exam_center || null,
           gender: ['Male', 'Female', 'Other'].includes(mapped.gender) ? mapped.gender : null,
           date_of_birth: mapped.date_of_birth || null,
           student_address: mapped.student_address || null,
@@ -214,19 +215,22 @@ export async function validateMappedRows(entityType, rawRows, columnMapping) {
         errors.push(`Student "${mapped.student_name}" not found in registered students`);
       }
 
-      const marks = [
-        mapped.subject_1_marks,
-        mapped.subject_2_marks,
-        mapped.subject_3_marks,
-        mapped.subject_4_marks,
-        mapped.subject_5_marks,
-      ];
+      const calc = calculateTwoSubjectResult({
+        subject1Marks: mapped.subject_1_marks,
+        subject2Marks: mapped.subject_2_marks,
+        standard: matchedStudent?.standard || '4th',
+        resultOptions,
+      });
 
-      if (marks.some((m) => m === '' || isNaN(Number(m)) || Number(m) < 0 || Number(m) > 100)) {
-        errors.push('All 5 subjects must have numeric marks between 0 and 100');
+      const s1 = Number(mapped.subject_1_marks);
+      const s2 = Number(mapped.subject_2_marks);
+
+      if (mapped.subject_1_marks === '' || isNaN(s1) || s1 < 0 || s1 > calc.sub1Max) {
+        errors.push(`Subject 1 marks must be 0 - ${calc.sub1Max}`);
       }
-
-      const calc = calculateExamResult(marks, 100, resultOptions);
+      if (mapped.subject_2_marks === '' || isNaN(s2) || s2 < 0 || s2 > calc.sub2Max) {
+        errors.push(`Subject 2 marks must be 0 - ${calc.sub2Max}`);
+      }
 
       validated.push({
         rowNumber,
@@ -239,11 +243,13 @@ export async function validateMappedRows(entityType, rawRows, columnMapping) {
           school_name: matchedStudent?.school_name || mapped.school_name,
           standard: matchedStudent?.standard || '',
           medium: matchedStudent?.medium || '',
-          subject_1_marks: Number(marks[0]) || 0,
-          subject_2_marks: Number(marks[1]) || 0,
-          subject_3_marks: Number(marks[2]) || 0,
-          subject_4_marks: Number(marks[3]) || 0,
-          subject_5_marks: Number(marks[4]) || 0,
+          subject_1_max_marks: calc.sub1Max,
+          subject_2_max_marks: calc.sub2Max,
+          subject_1_marks: s1 || 0,
+          subject_2_marks: s2 || 0,
+          subject_3_marks: 0,
+          subject_4_marks: 0,
+          subject_5_marks: 0,
           total_marks: calc.totalMarks,
           obtained_marks: calc.obtainedMarks,
           percentage: calc.percentage,
@@ -272,7 +278,6 @@ export async function commitValidCsvRows(entityType, fileName, validatedRows, us
     if (error) throw error;
   }
 
-  // Persist audit log in csv_import_logs
   await supabase.from('csv_import_logs').insert([
     {
       entity_type: entityType,

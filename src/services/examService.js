@@ -1,13 +1,5 @@
 import { supabase } from '../lib/supabaseClient';
 
-const DEFAULT_SUBJECT_NAMES = [
-  'Subject 1 (Language I)',
-  'Subject 2 (Language II)',
-  'Subject 3 (Mathematics)',
-  'Subject 4 (Science)',
-  'Subject 5 (Social Studies)',
-];
-
 export async function getExaminations({
   search = '',
   schoolId = '',
@@ -21,9 +13,10 @@ export async function getExaminations({
 } = {}) {
   let query = supabase
     .from('examinations')
-    .select('*, result_options(badge_color, is_passing), students(form_number)', {
-      count: 'exact',
-    });
+    .select(
+      '*, result_options(badge_color, is_passing), students(form_number, academic_year, counselor_name, exam_center, parent_mobile)',
+      { count: 'exact' }
+    );
 
   if (search && search.trim()) {
     const term = search.trim();
@@ -50,28 +43,27 @@ export async function getExaminations({
   return { data: data || [], count: count || 0 };
 }
 
-async function syncNormalizedSubjects(examId, payload) {
-  const marks = [
-    payload.subject_1_marks,
-    payload.subject_2_marks,
-    payload.subject_3_marks,
-    payload.subject_4_marks,
-    payload.subject_5_marks,
+async function syncNormalizedTwoSubjects(examId, payload) {
+  await supabase.from('examination_subjects').delete().eq('examination_id', examId);
+
+  const subjectRows = [
+    {
+      examination_id: examId,
+      subject_number: 1,
+      subject_name: payload.subject_1_name || 'Marathi & Mathematics',
+      max_marks: Number(payload.subject_1_max_marks) || 100,
+      obtained_marks: Number(payload.subject_1_marks) || 0,
+    },
+    {
+      examination_id: examId,
+      subject_number: 2,
+      subject_name: payload.subject_2_name || 'English & Intelligence',
+      max_marks: Number(payload.subject_2_max_marks) || 100,
+      obtained_marks: Number(payload.subject_2_marks) || 0,
+    },
   ];
-  const maxMarks = Number(payload.max_marks_per_subject) || 100;
 
-  const subjectRows = marks.map((m, idx) => ({
-    examination_id: examId,
-    subject_number: idx + 1,
-    subject_name: DEFAULT_SUBJECT_NAMES[idx],
-    max_marks: maxMarks,
-    obtained_marks: Number(m) || 0,
-  }));
-
-  const { error } = await supabase
-    .from('examination_subjects')
-    .upsert(subjectRows, { onConflict: 'examination_id,subject_number' });
-
+  const { error } = await supabase.from('examination_subjects').insert(subjectRows);
   if (error) throw error;
 }
 
@@ -94,7 +86,7 @@ export async function createExamination(payload, userId) {
     throw error;
   }
 
-  await syncNormalizedSubjects(data.id, payload);
+  await syncNormalizedTwoSubjects(data.id, payload);
   return data;
 }
 
@@ -108,7 +100,7 @@ export async function updateExamination(id, payload) {
 
   if (error) throw error;
 
-  await syncNormalizedSubjects(id, payload);
+  await syncNormalizedTwoSubjects(id, payload);
   return data;
 }
 

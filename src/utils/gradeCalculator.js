@@ -1,16 +1,32 @@
-export function calculateExamResult(marksArray, maxPerSubject = 100, resultOptions = []) {
-  const numericMarks = marksArray.map((m) => Math.max(0, Number(m) || 0));
-  const totalMarks = numericMarks.length * (Number(maxPerSubject) || 100);
-  const obtainedMarks = numericMarks.reduce((sum, val) => sum + val, 0);
-  const percentage =
-    totalMarks > 0 ? Number(((obtainedMarks / totalMarks) * 100).toFixed(2)) : 0;
+export const JUNIOR_STANDARDS = ['1st', '2nd', '3rd'];
 
-  // Match against active percentage-based result options (sorted by display_order)
+export function getSubjectMaxMarksByStandard(standard) {
+  const isJunior = JUNIOR_STANDARDS.includes(String(standard || '').trim());
+  return {
+    sub1Max: isJunior ? 100 : 150,
+    sub2Max: 100,
+    totalMax: isJunior ? 200 : 250,
+  };
+}
+
+export function calculateTwoSubjectResult({
+  subject1Marks,
+  subject2Marks,
+  standard = '4th',
+  resultOptions = [],
+}) {
+  const { sub1Max, sub2Max, totalMax } = getSubjectMaxMarksByStandard(standard);
+
+  const s1 = Math.min(sub1Max, Math.max(0, Number(subject1Marks) || 0));
+  const s2 = Math.min(sub2Max, Math.max(0, Number(subject2Marks) || 0));
+  const obtainedMarks = Number((s1 + s2).toFixed(2));
+  const percentage =
+    totalMax > 0 ? Number(((obtainedMarks / totalMax) * 100).toFixed(2)) : 0;
+
   const activeOptions = [...resultOptions]
     .filter((opt) => opt.is_active)
     .sort((a, b) => a.display_order - b.display_order);
 
-  // Exclude special manual-only zero-range flags (ABSENT / WITHHELD) during auto-grading
   const autoMatch = activeOptions.find(
     (opt) =>
       !['ABSENT', 'WITHHELD'].includes(opt.option_code) &&
@@ -22,8 +38,10 @@ export function calculateExamResult(marksArray, maxPerSubject = 100, resultOptio
   const matchedOption = autoMatch || fallback;
 
   return {
-    totalMarks: Number(totalMarks.toFixed(2)),
-    obtainedMarks: Number(obtainedMarks.toFixed(2)),
+    sub1Max,
+    sub2Max,
+    totalMarks: totalMax,
+    obtainedMarks,
     percentage,
     matchedOption,
     resultStatus: matchedOption ? matchedOption.option_label : percentage >= 35 ? 'Pass' : 'Fail',

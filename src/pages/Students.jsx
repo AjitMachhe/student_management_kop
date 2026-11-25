@@ -4,6 +4,8 @@ import {
   Plus,
   Search,
   Download,
+  FileText,
+  Ticket,
   Eye,
   Edit2,
   Trash2,
@@ -19,10 +21,13 @@ import {
   deleteStudent,
 } from '../services/studentService';
 import { getAllSchoolsDropdown, getSchoolFilterOptions } from '../services/schoolService';
+import { getOrganizationSettings } from '../services/organizationService';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { exportToCsv } from '../utils/csvHelper';
-import { STANDARDS_LIST, MEDIUMS_LIST } from '../utils/validators';
+import { exportTableToPdf } from '../utils/pdfExportHelper';
+import { generateHallTicketPdf } from '../utils/documentPdfGenerator';
+import { STANDARDS_LIST, MEDIUMS_LIST, ACADEMIC_YEARS_LIST } from '../utils/validators';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import Pagination from '../components/common/Pagination';
@@ -39,20 +44,20 @@ export default function Students() {
   const [loading, setLoading] = useState(true);
   const [schoolsDropdown, setSchoolsDropdown] = useState([]);
   const [districtsList, setDistrictsList] = useState([]);
+  const [orgSettings, setOrgSettings] = useState(null);
 
-  // Filters & Sorting
   const [search, setSearch] = useState(searchParams.get('q') || '');
   const debouncedSearch = useDebounce(search, 350);
   const [schoolId, setSchoolId] = useState('');
   const [standard, setStandard] = useState('');
   const [medium, setMedium] = useState('');
   const [district, setDistrict] = useState('');
+  const [academicYear, setAcademicYear] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  // Modals
   const [formOpen, setFormOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState(null);
   const [viewingStudent, setViewingStudent] = useState(null);
@@ -65,10 +70,15 @@ export default function Students() {
   }, [searchParams]);
 
   useEffect(() => {
-    Promise.all([getAllSchoolsDropdown(), getSchoolFilterOptions()])
-      .then(([schoolsData, filterOpts]) => {
+    Promise.all([
+      getAllSchoolsDropdown(),
+      getSchoolFilterOptions(),
+      getOrganizationSettings(),
+    ])
+      .then(([schoolsData, filterOpts, orgData]) => {
         setSchoolsDropdown(schoolsData);
         setDistrictsList(filterOpts.districts);
+        setOrgSettings(orgData);
       })
       .catch(console.error);
   }, []);
@@ -82,6 +92,7 @@ export default function Students() {
         standard,
         medium,
         district,
+        academicYear,
         sortBy,
         sortOrder,
         page,
@@ -94,7 +105,18 @@ export default function Students() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, schoolId, standard, medium, district, sortBy, sortOrder, page, pageSize]);
+  }, [
+    debouncedSearch,
+    schoolId,
+    standard,
+    medium,
+    district,
+    academicYear,
+    sortBy,
+    sortOrder,
+    page,
+    pageSize,
+  ]);
 
   useEffect(() => {
     fetchStudents();
@@ -127,7 +149,51 @@ export default function Students() {
     }
   };
 
-  const handleExportCsv = async () => {
+  const handleSingleHallTicket = async (student) => {
+    try {
+      toast.loading('Generating Hall Ticket PDF...', { id: 'ht' });
+      await generateHallTicketPdf(student, orgSettings);
+      toast.success('Hall Ticket PDF downloaded.', { id: 'ht' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate Hall Ticket.', { id: 'ht' });
+    }
+  };
+
+  const handleBulkHallTickets = async () => {
+    try {
+      toast.loading('Generating Bulk Hall Tickets PDF...', { id: 'bulk-ht' });
+      const { data } = await getStudents({
+        search: debouncedSearch,
+        schoolId,
+        standard,
+        medium,
+        district,
+        academicYear,
+        sortBy,
+        sortOrder,
+        page: 1,
+        pageSize: 500,
+      });
+      await generateHallTicketPdf(data, orgSettings);
+      toast.success(`Generated ${data.length} Hall Tickets in PDF.`, { id: 'bulk-ht' });
+    } catch (err) {
+      toast.error(err.message || 'Failed to generate Hall Tickets.', { id: 'bulk-ht' });
+    }
+  };
+
+  const exportCols = [
+    { key: 'form_number', header: 'Exam / Form No.' },
+    { key: 'student_name', header: 'Student Name' },
+    { key: 'parent_mobile', header: 'Parent Mobile' },
+    { key: 'school_name', header: 'School Name' },
+    { key: 'standard', header: 'Std' },
+    { key: 'medium', header: 'Medium' },
+    { key: 'academic_year', header: 'Academic Year' },
+    { key: 'counselor_name', header: 'Counselor' },
+    { key: 'exam_center', header: 'Exam Center' },
+  ];
+
+  const handleExport = async (format) => {
     try {
       const { data } = await getStudents({
         search: debouncedSearch,
@@ -135,38 +201,38 @@ export default function Students() {
         standard,
         medium,
         district,
+        academicYear,
         sortBy,
         sortOrder,
         page: 1,
         pageSize: 10000,
       });
-      exportToCsv('students_export.csv', data, [
-        { key: 'form_number', header: 'Form Number' },
-        { key: 'student_name', header: 'Student Name' },
-        { key: 'first_name', header: 'First Name' },
-        { key: 'father_name', header: "Father's Name" },
-        { key: 'student_surname', header: 'Surname' },
-        { key: 'parent_mobile', header: 'Parent Mobile' },
-        { key: 'school_name', header: 'School Name' },
-        { key: 'standard', header: 'Standard' },
-        { key: 'medium', header: 'Medium' },
-        { key: 'gender', header: 'Gender' },
-        { key: 'date_of_birth', header: 'Date of Birth' },
-        { key: 'student_address', header: 'Address' },
-      ]);
-      toast.success(`Exported ${data.length} student records.`);
+
+      if (format === 'csv') {
+        exportToCsv('students_records.csv', data, [
+          ...exportCols,
+          { key: 'first_name', header: 'First Name' },
+          { key: 'father_name', header: "Father's Name" },
+          { key: 'student_surname', header: 'Surname' },
+          { key: 'gender', header: 'Gender' },
+          { key: 'date_of_birth', header: 'Date of Birth' },
+          { key: 'student_address', header: 'Address' },
+        ]);
+        toast.success(`Exported ${data.length} students to CSV.`);
+      } else {
+        exportTableToPdf({
+          filename: 'students_records.pdf',
+          title: 'Registered Students Roster',
+          subtitle: `Total Students: ${data.length}`,
+          orgName: orgSettings?.org_name || 'Student Data Management System',
+          columns: exportCols,
+          rows: data,
+        });
+        toast.success(`Downloaded PDF with ${data.length} students.`);
+      }
     } catch (err) {
       toast.error(err.message || 'Export failed.');
     }
-  };
-
-  const resetFilters = () => {
-    setSearch('');
-    setSchoolId('');
-    setStandard('');
-    setMedium('');
-    setDistrict('');
-    setPage(1);
   };
 
   return (
@@ -176,14 +242,22 @@ export default function Students() {
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Student Information Management</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Register students, attach parent signatures, prevent duplicate entries, and filter profiles
+            Register students, assign counselors &amp; exam centers, and print Hall Tickets in PDF
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button onClick={handleExportCsv} className="btn-secondary">
+        <div className="flex flex-wrap items-center gap-2">
+          <button onClick={handleBulkHallTickets} className="btn-secondary">
+            <Ticket className="h-4 w-4 text-pink-600" />
+            Bulk Hall Tickets PDF
+          </button>
+          <button onClick={() => handleExport('csv')} className="btn-secondary">
             <Download className="h-4 w-4" />
-            Export CSV
+            CSV
+          </button>
+          <button onClick={() => handleExport('pdf')} className="btn-secondary">
+            <FileText className="h-4 w-4 text-red-600" />
+            PDF
           </button>
           <button
             onClick={() => {
@@ -210,7 +284,7 @@ export default function Students() {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search student, surname, school, mobile..."
+              placeholder="Search student, exam no, counselor, center..."
               className="input-field pl-9"
             />
           </div>
@@ -244,16 +318,16 @@ export default function Students() {
           </select>
 
           <select
-            value={medium}
+            value={academicYear}
             onChange={(e) => {
-              setMedium(e.target.value);
+              setAcademicYear(e.target.value);
               setPage(1);
             }}
             className="input-field"
           >
-            <option value="">All Mediums</option>
-            {MEDIUMS_LIST.map((m) => (
-              <option key={m} value={m}>{m}</option>
+            <option value="">All Academic Years</option>
+            {ACADEMIC_YEARS_LIST.map((yr) => (
+              <option key={yr} value={yr}>{yr}</option>
             ))}
           </select>
 
@@ -272,7 +346,6 @@ export default function Students() {
           </select>
         </div>
 
-        {/* Sort & Reset */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs">
           <div className="flex items-center gap-2">
             <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
@@ -284,10 +357,9 @@ export default function Students() {
             >
               <option value="created_at">Recently Registered</option>
               <option value="student_name">Student Name (A-Z)</option>
-              <option value="student_surname">Surname (A-Z)</option>
               <option value="school_name">School-wise</option>
               <option value="standard">Standard-wise</option>
-              <option value="form_number">Form Number</option>
+              <option value="form_number">Exam / Form Number</option>
             </select>
             <select
               value={sortOrder}
@@ -299,9 +371,17 @@ export default function Students() {
             </select>
           </div>
 
-          {(search || schoolId || standard || medium || district) && (
+          {(search || schoolId || standard || medium || district || academicYear) && (
             <button
-              onClick={resetFilters}
+              onClick={() => {
+                setSearch('');
+                setSchoolId('');
+                setStandard('');
+                setMedium('');
+                setDistrict('');
+                setAcademicYear('');
+                setPage(1);
+              }}
               className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700"
             >
               <FilterX className="h-3.5 w-3.5" />
@@ -331,12 +411,11 @@ export default function Students() {
             <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
               <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-600">
                 <tr>
-                  <th className="px-4 py-3">Form No.</th>
+                  <th className="px-4 py-3">Exam / Form No.</th>
                   <th className="px-4 py-3">Student Name</th>
-                  <th className="px-4 py-3">Parent Mobile</th>
-                  <th className="px-4 py-3">School & District</th>
-                  <th className="px-4 py-3">Std / Medium</th>
-                  <th className="px-4 py-3">Signature</th>
+                  <th className="px-4 py-3">School &amp; Center</th>
+                  <th className="px-4 py-3">Std / AY</th>
+                  <th className="px-4 py-3">Counselor</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
               </thead>
@@ -349,33 +428,32 @@ export default function Students() {
                     <td className="px-4 py-3">
                       <p className="font-semibold text-slate-900">{st.student_name}</p>
                       <p className="text-xs text-slate-500">
-                        {st.gender || 'N/A'} {st.date_of_birth ? `• DOB: ${st.date_of_birth}` : ''}
+                        {st.parent_mobile || 'No mobile'} {st.parent_signature_url ? '• Signed' : ''}
                       </p>
-                    </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-slate-700">
-                      {st.parent_mobile}
                     </td>
                     <td className="px-4 py-3">
                       <p className="font-medium text-slate-800">{st.school_name}</p>
-                      <p className="text-xs text-slate-400">{st.schools?.district || '-'}</p>
+                      <p className="text-xs text-slate-400">
+                        Center: {st.exam_center || 'Not Assigned'}
+                      </p>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <span className="inline-flex rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700">
-                        {st.standard} • {st.medium}
+                        {st.standard} • {st.academic_year || '2026-27'}
                       </span>
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3">
-                      {st.parent_signature_url ? (
-                        <span className="inline-flex items-center gap-1 rounded bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
-                          <FileCheck className="h-3.5 w-3.5" />
-                          Attached
-                        </span>
-                      ) : (
-                        <span className="text-xs text-slate-400">Pending</span>
-                      )}
+                    <td className="px-4 py-3 text-xs text-slate-700">
+                      {st.counselor_name || '-'}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">
                       <div className="inline-flex items-center gap-1">
+                        <button
+                          onClick={() => handleSingleHallTicket(st)}
+                          title="Download Hall Ticket PDF"
+                          className="rounded-lg p-1.5 text-pink-600 hover:bg-pink-50"
+                        >
+                          <Ticket className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => setViewingStudent(st)}
                           title="View Complete Profile"
@@ -423,7 +501,6 @@ export default function Students() {
         </div>
       )}
 
-      {/* Modals */}
       <StudentFormModal
         isOpen={formOpen}
         onClose={() => {
@@ -438,6 +515,7 @@ export default function Students() {
       <StudentViewModal
         student={viewingStudent}
         onClose={() => setViewingStudent(null)}
+        onDownloadHallTicket={handleSingleHallTicket}
       />
 
       <ConfirmDialog
@@ -446,7 +524,7 @@ export default function Students() {
         onConfirm={handleDeleteConfirm}
         loading={deleting}
         title="Delete Student Record"
-        message={`Are you sure you want to delete "${deleteTarget?.student_name}" (${deleteTarget?.form_number})? Associated examination records will also be removed.`}
+        message={`Are you sure you want to delete "${deleteTarget?.student_name}" (${deleteTarget?.form_number})?`}
       />
     </div>
   );
