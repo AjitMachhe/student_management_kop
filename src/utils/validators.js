@@ -7,16 +7,16 @@ export const MEDIUMS_LIST = [
   'Marathi',
   'English',
   'Semi-English',
-  'Hindi',
-  'Kannada',
-  'Urdu',
 ];
 
 export const ACADEMIC_YEARS_LIST = [
+  '2022-23',    
+  '2023-24',
   '2025-26',
   '2026-27',
   '2027-28',
   '2028-29',
+  '2029-30',
 ];
 
 export function isValidIndianMobile(phone, required = true) {
