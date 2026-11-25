@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { X, Save, School } from 'lucide-react';
 import toast from 'react-hot-toast';
 import {
-  STANDARDS_LIST,
   MEDIUMS_LIST,
   isValidIndianMobile,
   isValidSchoolPhone,
@@ -18,7 +17,6 @@ const initialForm = {
   taluka: '',
   district: '',
   pin_code: '',
-  standard: '10th',
   medium: 'Marathi',
   school_phone: '',
   guidance_teacher_name: '',
@@ -41,7 +39,6 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
         taluka: initialData.taluka || '',
         district: initialData.district || '',
         pin_code: initialData.pin_code || '',
-        standard: initialData.standard || '10th',
         medium: initialData.medium || 'Marathi',
         school_phone: initialData.school_phone || '',
         guidance_teacher_name: initialData.guidance_teacher_name || '',
@@ -64,7 +61,6 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
     if (!form.taluka.trim()) errs.taluka = 'Taluka is required.';
     if (!form.district.trim()) errs.district = 'District is required.';
     if (!isValidPinCode(form.pin_code)) errs.pin_code = 'Enter a valid 6-digit PIN code.';
-    if (!form.standard) errs.standard = 'Standard is required.';
     if (!form.medium) errs.medium = 'Medium is required.';
     if (!isValidSchoolPhone(form.school_phone)) {
       errs.school_phone = 'Enter a valid 10-12 digit phone number.';
@@ -72,7 +68,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
     if (!form.guidance_teacher_name.trim()) {
       errs.guidance_teacher_name = 'Guidance teacher name is required.';
     }
-    if (!isValidIndianMobile(form.teacher_mobile)) {
+    if (!isValidIndianMobile(form.teacher_mobile, true)) {
       errs.teacher_mobile = 'Enter a valid 10-digit mobile number.';
     }
     if (!isValidEmail(form.school_email)) {
@@ -110,7 +106,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
         school_email: form.school_email.trim() || null,
       };
       if (!initialData) {
-        delete payload.form_number; // Let PostgreSQL trigger auto-generate SCH-XXXX
+        delete payload.form_number;
       }
       await onSave(payload);
       onClose();
@@ -124,7 +120,6 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-xs">
       <div className="my-8 w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl">
-        {/* Modal Header */}
         <div className="flex items-center justify-between border-b border-slate-200 bg-blue-950 px-6 py-4 text-white">
           <div className="flex items-center gap-2.5">
             <School className="h-5 w-5 text-blue-300" />
@@ -137,11 +132,10 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
           </button>
         </div>
 
-        {/* Form Body */}
         <form onSubmit={handleSubmit} className="max-h-[80vh] overflow-y-auto p-6">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div>
-              <label className="label-text">1. Form Number</label>
+              <label className="label-text">Form Number</label>
               <input
                 type="text"
                 disabled
@@ -151,7 +145,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div className="sm:col-span-2">
-              <label className="label-text">2. School Name *</label>
+              <label className="label-text">School Name *</label>
               <input
                 type="text"
                 value={form.school_name}
@@ -163,7 +157,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div className="sm:col-span-2 lg:col-span-3">
-              <label className="label-text">3. School Address *</label>
+              <label className="label-text">School Address *</label>
               <input
                 type="text"
                 value={form.school_address}
@@ -175,7 +169,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div>
-              <label className="label-text">4. At Post *</label>
+              <label className="label-text">At Post *</label>
               <input
                 type="text"
                 value={form.at_post}
@@ -187,7 +181,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div>
-              <label className="label-text">5. Taluka *</label>
+              <label className="label-text">Taluka *</label>
               <input
                 type="text"
                 value={form.taluka}
@@ -199,7 +193,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div>
-              <label className="label-text">6. District *</label>
+              <label className="label-text">District *</label>
               <input
                 type="text"
                 value={form.district}
@@ -211,7 +205,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div>
-              <label className="label-text">7. PIN Code *</label>
+              <label className="label-text">PIN Code *</label>
               <input
                 type="text"
                 maxLength={6}
@@ -224,21 +218,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div>
-              <label className="label-text">8. Standard *</label>
-              <select
-                value={form.standard}
-                onChange={(e) => handleChange('standard', e.target.value)}
-                className="input-field"
-              >
-                {STANDARDS_LIST.map((std) => (
-                  <option key={std} value={std}>{std}</option>
-                ))}
-              </select>
-              {errors.standard && <p className="mt-1 text-xs text-red-600">{errors.standard}</p>}
-            </div>
-
-            <div>
-              <label className="label-text">9. Medium *</label>
+              <label className="label-text">Medium *</label>
               <select
                 value={form.medium}
                 onChange={(e) => handleChange('medium', e.target.value)}
@@ -252,7 +232,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div>
-              <label className="label-text">10. School Phone Number *</label>
+              <label className="label-text">School Phone Number *</label>
               <input
                 type="text"
                 maxLength={12}
@@ -265,7 +245,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div>
-              <label className="label-text">11. Guidance Teacher Name *</label>
+              <label className="label-text">Guidance Teacher Name *</label>
               <input
                 type="text"
                 value={form.guidance_teacher_name}
@@ -279,7 +259,7 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
             </div>
 
             <div>
-              <label className="label-text">12. Teacher Mobile Number *</label>
+              <label className="label-text">Teacher Mobile Number *</label>
               <input
                 type="text"
                 maxLength={10}
@@ -291,8 +271,8 @@ export default function SchoolFormModal({ isOpen, onClose, onSave, initialData =
               {errors.teacher_mobile && <p className="mt-1 text-xs text-red-600">{errors.teacher_mobile}</p>}
             </div>
 
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className="label-text">13. School Email (Optional)</label>
+            <div>
+              <label className="label-text">School Email (Optional)</label>
               <input
                 type="email"
                 value={form.school_email}

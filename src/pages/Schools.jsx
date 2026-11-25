@@ -3,6 +3,7 @@ import {
   Plus,
   Search,
   Download,
+  FileText,
   Eye,
   Edit2,
   Trash2,
@@ -17,9 +18,11 @@ import {
   updateSchool,
   deleteSchool,
 } from '../services/schoolService';
+import { getOrganizationSettings } from '../services/organizationService';
 import { useAuth } from '../context/AuthContext';
 import { useDebounce } from '../hooks/useDebounce';
 import { exportToCsv } from '../utils/csvHelper';
+import { exportTableToPdf } from '../utils/pdfExportHelper';
 import LoadingSpinner from '../components/common/LoadingSpinner';
 import EmptyState from '../components/common/EmptyState';
 import Pagination from '../components/common/Pagination';
@@ -32,13 +35,12 @@ export default function Schools() {
   const [schools, setSchools] = useState([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [orgSettings, setOrgSettings] = useState(null);
 
-  // Filters & Pagination
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 350);
   const [district, setDistrict] = useState('');
   const [taluka, setTaluka] = useState('');
-  const [standard, setStandard] = useState('');
   const [medium, setMedium] = useState('');
   const [sortBy, setSortBy] = useState('created_at');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -48,11 +50,9 @@ export default function Schools() {
   const [filterOptions, setFilterOptions] = useState({
     districts: [],
     talukas: [],
-    standards: [],
     mediums: [],
   });
 
-  // Modals
   const [formOpen, setFormOpen] = useState(false);
   const [editingSchool, setEditingSchool] = useState(null);
   const [viewingSchool, setViewingSchool] = useState(null);
@@ -68,6 +68,11 @@ export default function Schools() {
     }
   };
 
+  useEffect(() => {
+    loadFilterOptions();
+    getOrganizationSettings().then(setOrgSettings).catch(() => {});
+  }, []);
+
   const fetchSchools = useCallback(async () => {
     setLoading(true);
     try {
@@ -75,7 +80,6 @@ export default function Schools() {
         search: debouncedSearch,
         district,
         taluka,
-        standard,
         medium,
         sortBy,
         sortOrder,
@@ -89,11 +93,7 @@ export default function Schools() {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, district, taluka, standard, medium, sortBy, sortOrder, page, pageSize]);
-
-  useEffect(() => {
-    loadFilterOptions();
-  }, []);
+  }, [debouncedSearch, district, taluka, medium, sortBy, sortOrder, page, pageSize]);
 
   useEffect(() => {
     fetchSchools();
@@ -126,64 +126,73 @@ export default function Schools() {
     }
   };
 
-  const handleExportCsv = async () => {
+  const schoolExportColumns = [
+    { key: 'form_number', header: 'Form No.' },
+    { key: 'school_name', header: 'School Name' },
+    { key: 'at_post', header: 'At Post' },
+    { key: 'taluka', header: 'Taluka' },
+    { key: 'district', header: 'District' },
+    { key: 'pin_code', header: 'PIN' },
+    { key: 'medium', header: 'Medium' },
+    { key: 'school_phone', header: 'School Phone' },
+    { key: 'guidance_teacher_name', header: 'Guidance Teacher' },
+    { key: 'teacher_mobile', header: 'Teacher Mobile' },
+  ];
+
+  const handleExport = async (format) => {
     try {
       const { data } = await getSchools({
         search: debouncedSearch,
         district,
         taluka,
-        standard,
         medium,
         sortBy,
         sortOrder,
         page: 1,
         pageSize: 10000,
       });
-      exportToCsv('schools_export.csv', data, [
-        { key: 'form_number', header: 'Form Number' },
-        { key: 'school_name', header: 'School Name' },
-        { key: 'school_address', header: 'School Address' },
-        { key: 'at_post', header: 'At Post' },
-        { key: 'taluka', header: 'Taluka' },
-        { key: 'district', header: 'District' },
-        { key: 'pin_code', header: 'PIN Code' },
-        { key: 'standard', header: 'Standard' },
-        { key: 'medium', header: 'Medium' },
-        { key: 'school_phone', header: 'School Phone' },
-        { key: 'guidance_teacher_name', header: 'Guidance Teacher' },
-        { key: 'teacher_mobile', header: 'Teacher Mobile' },
-        { key: 'school_email', header: 'School Email' },
-      ]);
-      toast.success(`Exported ${data.length} school records.`);
+
+      if (format === 'csv') {
+        exportToCsv('schools_directory.csv', data, [
+          ...schoolExportColumns,
+          { key: 'school_address', header: 'School Address' },
+          { key: 'school_email', header: 'School Email' },
+        ]);
+        toast.success(`Exported ${data.length} schools to CSV.`);
+      } else {
+        exportTableToPdf({
+          filename: 'schools_directory.pdf',
+          title: 'Registered Schools & Guidance Teachers Directory',
+          subtitle: `Total Records: ${data.length}`,
+          orgName: orgSettings?.org_name || 'Student Data Management System',
+          columns: schoolExportColumns,
+          rows: data,
+        });
+        toast.success(`Downloaded PDF with ${data.length} schools.`);
+      }
     } catch (err) {
       toast.error(err.message || 'Export failed.');
     }
   };
 
-  const resetFilters = () => {
-    setSearch('');
-    setDistrict('');
-    setTaluka('');
-    setStandard('');
-    setMedium('');
-    setPage(1);
-  };
-
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">School Information Management</h1>
           <p className="mt-0.5 text-sm text-slate-500">
-            Manage registered schools, guidance teachers, locations, and academic standards
+            Manage registered schools, guidance teachers, locations, and mediums
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
-          <button onClick={handleExportCsv} className="btn-secondary">
+          <button onClick={() => handleExport('csv')} className="btn-secondary">
             <Download className="h-4 w-4" />
             Export CSV
+          </button>
+          <button onClick={() => handleExport('pdf')} className="btn-secondary">
+            <FileText className="h-4 w-4 text-red-600" />
+            Download PDF
           </button>
           <button
             onClick={() => {
@@ -198,9 +207,9 @@ export default function Schools() {
         </div>
       </div>
 
-      {/* Search & Filter Toolbar */}
+      {/* Search & Filter Toolbar (No Standard Filter) */}
       <div className="card-panel p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div className="relative sm:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <input
@@ -244,20 +253,6 @@ export default function Schools() {
           </select>
 
           <select
-            value={standard}
-            onChange={(e) => {
-              setStandard(e.target.value);
-              setPage(1);
-            }}
-            className="input-field"
-          >
-            <option value="">All Standards</option>
-            {filterOptions.standards.map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-
-          <select
             value={medium}
             onChange={(e) => {
               setMedium(e.target.value);
@@ -272,7 +267,6 @@ export default function Schools() {
           </select>
         </div>
 
-        {/* Sort & Clear Controls */}
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs">
           <div className="flex items-center gap-2">
             <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
@@ -286,7 +280,6 @@ export default function Schools() {
               <option value="school_name">School Name (A-Z)</option>
               <option value="form_number">Form Number</option>
               <option value="district">District</option>
-              <option value="standard">Standard</option>
             </select>
             <select
               value={sortOrder}
@@ -298,9 +291,15 @@ export default function Schools() {
             </select>
           </div>
 
-          {(search || district || taluka || standard || medium) && (
+          {(search || district || taluka || medium) && (
             <button
-              onClick={resetFilters}
+              onClick={() => {
+                setSearch('');
+                setDistrict('');
+                setTaluka('');
+                setMedium('');
+                setPage(1);
+              }}
               className="inline-flex items-center gap-1 font-semibold text-blue-600 hover:text-blue-700"
             >
               <FilterX className="h-3.5 w-3.5" />
@@ -310,7 +309,7 @@ export default function Schools() {
         </div>
       </div>
 
-      {/* Data Table */}
+      {/* Table */}
       {loading ? (
         <LoadingSpinner text="Loading school directory..." />
       ) : schools.length === 0 ? (
@@ -333,7 +332,7 @@ export default function Schools() {
                   <th className="px-4 py-3">Form No.</th>
                   <th className="px-4 py-3">School Name</th>
                   <th className="px-4 py-3">Location (Taluka / Dist)</th>
-                  <th className="px-4 py-3">Std / Medium</th>
+                  <th className="px-4 py-3">Medium</th>
                   <th className="px-4 py-3">Guidance Teacher</th>
                   <th className="px-4 py-3 text-right">Actions</th>
                 </tr>
@@ -354,7 +353,7 @@ export default function Schools() {
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
-                        {sc.standard} • {sc.medium}
+                        {sc.medium}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -410,7 +409,6 @@ export default function Schools() {
         </div>
       )}
 
-      {/* Modals */}
       <SchoolFormModal
         isOpen={formOpen}
         onClose={() => {
@@ -421,10 +419,7 @@ export default function Schools() {
         initialData={editingSchool}
       />
 
-      <SchoolViewModal
-        school={viewingSchool}
-        onClose={() => setViewingSchool(null)}
-      />
+      <SchoolViewModal school={viewingSchool} onClose={() => setViewingSchool(null)} />
 
       <ConfirmDialog
         isOpen={!!deleteTarget}

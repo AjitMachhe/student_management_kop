@@ -5,9 +5,31 @@ export async function getOrganizationSettings() {
     .from('organization_settings')
     .select('*')
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (error) throw error;
+
+  if (!data) {
+    const { data: created, error: insertErr } = await supabase
+      .from('organization_settings')
+      .insert([
+        {
+          org_name: 'Perfect Publication, Kolhapur',
+          org_name_marathi: 'परफेक्ट पब्लिकेशन, कोल्हापूर',
+          exam_title: 'Maharashtra State Talent Search Examination',
+          exam_title_marathi: 'महाराष्ट्र स्टेट टॅलेंट सर्च (प्रज्ञा शोध) परीक्षा',
+          exam_short_code: 'M.S.T.S EXAM',
+          academic_year: '2026-27',
+          exam_date: '22 March 2026',
+        },
+      ])
+      .select()
+      .single();
+
+    if (insertErr) throw insertErr;
+    return created;
+  }
+
   return data;
 }
 
@@ -16,7 +38,7 @@ export async function uploadBrandingAsset(file, folder = 'logos') {
 
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
   if (!allowedTypes.includes(file.type)) {
-    throw new Error('Image must be PNG, JPG, or WEBP.');
+    throw new Error('Logo/Signature must be PNG, JPG, or WEBP.');
   }
   if (file.size > 2 * 1024 * 1024) {
     throw new Error('File size must be under 2 MB.');
@@ -39,8 +61,8 @@ export async function uploadBrandingAsset(file, folder = 'logos') {
 }
 
 export async function updateOrganizationSettings(id, payload, logoFile = null, signatureFile = null) {
-  let logoUrl = payload.logo_url;
-  let signatureUrl = payload.controller_signature_url;
+  let logoUrl = payload.logo_url || null;
+  let signatureUrl = payload.controller_signature_url || null;
 
   if (logoFile) {
     logoUrl = await uploadBrandingAsset(logoFile, 'logos');
